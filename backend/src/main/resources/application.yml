@@ -35,11 +35,21 @@ spring:
           max-idle: 8
           min-idle: 0
 
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 20MB
+      max-request-size: 25MB
+
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
     time-zone: Asia/Shanghai
     serialization:
       write-dates-as-timestamps: false
+
+rowing:
+  plan:
+    upload-dir: ${ROWING_PLAN_DIR:./uploads/plans}
 
 logging:
   level:

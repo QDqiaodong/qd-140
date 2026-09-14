@@ -32,3 +32,22 @@ docker compose up -d --build
 ```
 
 Docker Compose 端口均绑定到 `127.0.0.1`，镜像基础地址通过 `.env` 中的 `DOCKER_REGISTRY` 统一控制。
+
+## 功能说明
+
+训练组别建档时可上传训练计划附件（场务操作）：
+
+- 允许类型：`pdf`、`doc`、`docx`、`xls`、`xlsx`、`ppt`、`pptx`、`txt`，单个文件不超过 20MB；
+- 附件类型不在允许范围内时，前后端都会提示“请更换文件”，且不会执行保存组别；
+- 已有附件时再次上传会替换旧附件（服务端同步删除旧文件）；
+- 附件上传通过后才允许保存/建档组别，附件保存在后端 `uploads/plans` 目录，
+  容器部署时通过 `plan_files` 数据卷持久化。
+
+## 存量数据库升级
+
+`init.sql` 只在 MySQL 数据卷首次初始化时执行。已运行过的旧库需手工执行一次：
+
+```bash
+docker exec -i qd-140-mysql mysql -uroot -prowing2024 rowing_base \
+  < backend/sql/migration_plan_attachment.sql
+```

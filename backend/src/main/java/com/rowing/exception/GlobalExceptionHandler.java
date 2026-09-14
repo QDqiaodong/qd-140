@@ -6,6 +6,8 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -30,6 +32,18 @@ public class GlobalExceptionHandler {
         });
         log.warn("参数校验失败: {}", errors);
         return ApiResponse.error(400, "参数校验失败");
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ApiResponse<Void> handleMaxUploadSize(MaxUploadSizeExceededException e) {
+        log.warn("上传附件超过大小限制: {}", e.getMessage());
+        return ApiResponse.error(400, "训练计划附件大小不能超过20MB，请压缩或更换文件");
+    }
+
+    @ExceptionHandler(MultipartException.class)
+    public ApiResponse<Void> handleMultipart(MultipartException e) {
+        log.warn("附件上传请求异常: {}", e.getMessage());
+        return ApiResponse.error(400, "附件上传失败，请检查文件后重试");
     }
 
     @ExceptionHandler(Exception.class)

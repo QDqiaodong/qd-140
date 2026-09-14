@@ -16,14 +16,30 @@ import com.rowing.repository.RowingGroupRepository;
 import com.rowing.service.RowingGroupService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.MalformedURLException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -31,10 +47,21 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class RowingGroupServiceImpl implements RowingGroupService {
 
+    /** 基地允许上传的训练计划附件类型（扩展名白名单，展示顺序） */
+    private static final List<String> ALLOWED_EXTENSION_LIST = Arrays.asList(
+            "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt");
+
+    private static final Set<String> ALLOWED_EXTENSIONS = new HashSet<>(ALLOWED_EXTENSION_LIST);
+
+    private static final long MAX_FILENAME_LENGTH = 200L;
+
     private final RowingGroupRepository groupRepository;
     private final BracketBindingRepository bindingRepository;
     private final DockingBracketRepository bracketRepository;
     private final BindingChangeLogRepository changeLogRepository;
+
+    @Value("${rowing.plan.upload-dir:./uploads/plans}")
+    private String planUploadDir;
 
     @Override
     @Transactional
@@ -120,6 +147,7 @@ public class RowingGroupServiceImpl implements RowingGroupService {
         RowingGroup group = groupRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("组别不存在"));
 
+        deletePlanFile(group);
         bindingRepository.deactivateByGroupId(id);
         groupRepository.delete(group);
 
@@ -174,5 +202,123 @@ public class RowingGroupServiceImpl implements RowingGroupService {
     @Override
     public List<Integer> findDistinctRacingDistances() {
         return groupRepository.findDistinctRacingDistances();
+    }
+
+    @Override
+    @Transactional
+    public GroupDTO uploadPlan(Long groupId, MultipartFile file) {
+        RowingGroup group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new BusinessException("组别不存在"));
+
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException("训练计划附件不能为空");
+        }
+
+        String originalName = StringUtils.cleanPath(
+                file.getOriginalFilename() == null ? "" : file.getOriginalFilename());
+        String extension = getExtension(originalName);
+        if (!ALLOWED_EXTENSIONS.contains(extension)) {
+            throw new BusinessException("训练计划附件格式不被基地允许，请更换为 "
+                    + String.join("、", ALLOWED_EXTENSION_LIST) + " 格式的文件");
+        }
+
+        if (originalName.length() > MAX_FILENAME_LENGTH) {
+            throw new BusinessException("附件文件名过长，请修改后重新上传");
+        }
+
+        Path uploadRoot = Paths.get(planUploadDir).toAbsolutePath().normalize();
+        try {
+            Files.createDirectories(uploadRoot);
+        } catch (IOException e) {
+            log.error("创建训练计划存储目录失败: {}", uploadRoot, e);
+            throw new BusinessException("附件存储目录不可用，请联系管理员");
+        }
+
+        String storedName = "group_" + groupId + "_" + System.currentTimeMillis() + "." + extension;
+        Path target = uploadRoot.resolve(storedName).normalize();
+        if (!target.startsWith(uploadRoot)) {
+            throw new BusinessException("非法的附件文件名");
+        }
+
+        try (InputStream in = file.getInputStream()) {
+            Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            log.error("训练计划附件落盘失败: groupId={}, file={}", groupId, originalName, e);
+            deleteStoredFile(storedName, uploadRoot);
+            throw new BusinessException("附件上传失败，请稍后重试");
+        }
+
+        // 附件已落盘并通过校验，再替换旧附件并保存组别
+        String oldFilePath = group.getPlanFilePath();
+        group.setPlanFileName(originalName);
+        group.setPlanFilePath(storedName);
+        group = groupRepository.save(group);
+        log.info("组别 {} 上传训练计划成功: {}", group.getGroupCode(), originalName);
+
+        deleteStoredFile(oldFilePath, uploadRoot);
+
+        return GroupDTO.fromEntity(group);
+    }
+
+    @Override
+    public PlanFile loadPlan(Long groupId) {
+        RowingGroup group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new BusinessException("组别不存在"));
+
+        if (!StringUtils.hasText(group.getPlanFilePath())) {
+            throw new BusinessException("该组别尚未上传训练计划附件");
+        }
+
+        Path uploadRoot = Paths.get(planUploadDir).toAbsolutePath().normalize();
+        Path target = uploadRoot.resolve(group.getPlanFilePath()).normalize();
+        if (!target.startsWith(uploadRoot) || !Files.exists(target)) {
+            log.error("训练计划附件文件丢失: groupId={}, path={}", groupId, group.getPlanFilePath());
+            throw new BusinessException("训练计划附件文件不存在或已被删除");
+        }
+
+        try {
+            Resource resource = new UrlResource(target.toUri());
+            if (!resource.isReadable()) {
+                throw new BusinessException("训练计划附件无法读取");
+            }
+            return new PlanFile(resource, group.getPlanFileName(), Files.size(target));
+        } catch (MalformedURLException e) {
+            log.error("训练计划附件路径异常: {}", target, e);
+            throw new BusinessException("训练计划附件无法读取");
+        } catch (IOException e) {
+            log.error("训练计划附件读取失败: {}", target, e);
+            throw new BusinessException("训练计划附件无法读取");
+        }
+    }
+
+    private String getExtension(String fileName) {
+        int dotIndex = fileName.lastIndexOf('.');
+        if (dotIndex < 0 || dotIndex == fileName.length() - 1) {
+            return "";
+        }
+        return fileName.substring(dotIndex + 1).toLowerCase(Locale.ROOT);
+    }
+
+    private void deletePlanFile(RowingGroup group) {
+        if (!StringUtils.hasText(group.getPlanFilePath())) {
+            return;
+        }
+        Path uploadRoot = Paths.get(planUploadDir).toAbsolutePath().normalize();
+        deleteStoredFile(group.getPlanFilePath(), uploadRoot);
+    }
+
+    private void deleteStoredFile(String storedName, Path uploadRoot) {
+        if (!StringUtils.hasText(storedName)) {
+            return;
+        }
+        Path target = uploadRoot.resolve(storedName).normalize();
+        if (!target.startsWith(uploadRoot)) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(target);
+        } catch (IOException e) {
+            log.warn("删除旧训练计划附件失败: {}", target, e);
+        }
     }
 }

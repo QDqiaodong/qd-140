@@ -34,6 +34,12 @@ public class RowingGroup {
     @Column(name = "description", length = 255)
     private String description;
 
+    @Column(name = "plan_file_name", length = 255)
+    private String planFileName;
+
+    @Column(name = "plan_file_path", length = 500)
+    private String planFilePath;
+
     @Column(name = "created_at")
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();

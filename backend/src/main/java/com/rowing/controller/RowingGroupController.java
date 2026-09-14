@@ -8,8 +8,15 @@ import com.rowing.dto.response.PageResult;
 import com.rowing.service.RowingGroupService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @RestController
@@ -69,5 +76,24 @@ public class RowingGroupController {
     @GetMapping("/distances")
     public ApiResponse<List<Integer>> getDistinctDistances() {
         return ApiResponse.success(groupService.findDistinctRacingDistances());
+    }
+
+    @PostMapping(value = "/{id}/plan", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<GroupDTO> uploadPlan(@PathVariable Long id,
+                                            @RequestParam("file") MultipartFile file) {
+        return ApiResponse.success("训练计划上传成功", groupService.uploadPlan(id, file));
+    }
+
+    @GetMapping("/{id}/plan")
+    public ResponseEntity<Resource> downloadPlan(@PathVariable Long id) {
+        RowingGroupService.PlanFile plan = groupService.loadPlan(id);
+        String encodedName = URLEncoder.encode(plan.fileName(), StandardCharsets.UTF_8).replace("+", "%20");
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + encodedName + "\"; filename*=UTF-8''" + encodedName)
+                .contentLength(plan.size())
+                .body(plan.resource());
     }
 }

@@ -19,7 +19,8 @@ services:
       - --init-connect=SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./backend/sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./backend/sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./backend/sql/migration_plan_attachment.sql:/docker-entrypoint-initdb.d/02-migration_plan_attachment.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
@@ -68,11 +69,14 @@ services:
       SPRING_REDIS_PORT: "6379"
       SPRING_DATA_REDIS_PASSWORD: "${REDIS_PASSWORD}"
       SPRING_REDIS_PASSWORD: "rowing_redis"
+      ROWING_PLAN_DIR: "/app/uploads/plans"
     depends_on:
       mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - plan_files:/app/uploads/plans
     networks:
       - app-network
 
@@ -94,6 +98,7 @@ services:
 volumes:
   mysql_data:
   redis_data:
+  plan_files:
 
 networks:
   app-network:

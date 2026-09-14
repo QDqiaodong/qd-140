@@ -19,6 +19,7 @@ public class GroupDTO {
     private String groupCode;
     private Integer racingDistance;
     private String description;
+    private String planFileName;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -29,6 +30,7 @@ public class GroupDTO {
                 .groupCode(entity.getGroupCode())
                 .racingDistance(entity.getRacingDistance())
                 .description(entity.getDescription())
+                .planFileName(entity.getPlanFileName())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();

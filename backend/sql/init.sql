@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS rowing_group (
     group_code VARCHAR(50) NOT NULL UNIQUE COMMENT '组别编码',
     racing_distance INT NOT NULL COMMENT '常规竞速距离(m)',
     description VARCHAR(255) COMMENT '描述',
+    plan_file_name VARCHAR(255) COMMENT '训练计划附件原始文件名',
+    plan_file_path VARCHAR(500) COMMENT '训练计划附件存储路径',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     INDEX idx_racing_distance (racing_distance)

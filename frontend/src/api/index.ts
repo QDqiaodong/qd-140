@@ -36,6 +36,7 @@ export interface Group {
   groupCode: string
   racingDistance: number
   description: string
+  planFileName: string | null
   createdAt: string
   updatedAt: string
 }
@@ -101,9 +102,9 @@ export const bracketApi = {
 }
 
 export const groupApi = {
-  create: (data: Omit<Group, 'id' | 'createdAt' | 'updatedAt'>) =>
+  create: (data: Omit<Group, 'id' | 'planFileName' | 'createdAt' | 'updatedAt'>) =>
     service.post('/group', data) as unknown as Promise<Group>,
-  update: (data: Partial<Group> & { id: number }) =>
+  update: (data: Partial<Omit<Group, 'planFileName' | 'createdAt' | 'updatedAt'>> & { id: number }) =>
     service.put('/group', data) as unknown as Promise<Group>,
   delete: (id: number) => service.delete(`/group/${id}`) as unknown as Promise<void>,
   getById: (id: number) => service.get(`/group/${id}`) as unknown as Promise<Group>,
@@ -116,7 +117,15 @@ export const groupApi = {
     pageSize?: number
   }) => service.get('/group/page', { params }) as unknown as Promise<PageResult<Group>>,
   getByDistance: (distance: number) => service.get(`/group/distance/${distance}`) as unknown as Promise<Group[]>,
-  getDistinctDistances: () => service.get('/group/distances') as unknown as Promise<number[]>
+  getDistinctDistances: () => service.get('/group/distances') as unknown as Promise<number[]>,
+  uploadPlan: (id: number, file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return service.post(`/group/${id}/plan`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }) as unknown as Promise<Group>
+  },
+  planDownloadUrl: (id: number) => `/api/group/${id}/plan`
 }
 
 export const bindingApi = {
