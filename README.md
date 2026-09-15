@@ -50,4 +50,19 @@ Docker Compose 端口均绑定到 `127.0.0.1`，镜像基础地址通过 `.env` 
 ```bash
 docker exec -i qd-140-mysql mysql -uroot -prowing2024 rowing_base \
   < backend/sql/migration_plan_attachment.sql
+
+docker exec -i qd-140-mysql mysql -uroot -prowing2024 rowing_base \
+  < backend/sql/migration_training_session.sql
 ```
+
+## 训练排课与承重校验
+
+场务在“训练排课”页给某天的训练课次安排停靠支架时：
+
+- 预计上艇人数为必填，人数空着不能排课/保存；
+- 人数不得超过所选支架**当前承重**，超出会被前后端一起拦住，提示中写明
+  “承重 X 人，本次排了 Y 人”；
+- 支架承重被场务调小后，已排人数压过新承重的旧课会自动判为“超载/不可上”
+  （每次查询按支架当前承重实时计算，无需手工处理），关掉排课页再打开仍可一眼看出，
+  未超载的课不受影响；
+- 修改这类超载旧课时，同样按新承重拦截，必须把人数降到新承重以内（或更换支架）才能保存。

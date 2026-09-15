@@ -102,6 +102,34 @@ export interface DistanceStat {
   groups: Group[]
 }
 
+/** 训练课次（排课）。valid/overloaded 由后端按支架“当前承重”实时判定 */
+export interface Session {
+  id: number
+  sessionDate: string
+  bracketId: number
+  bracketCode: string | null
+  loadCapacity: number | null
+  bracketStatus: number | null
+  groupId: number | null
+  groupName: string | null
+  groupCode: string | null
+  expectedPersonCount: number
+  remark: string | null
+  createdAt: string
+  updatedAt: string
+  valid: boolean
+  overloaded: boolean
+}
+
+export interface SessionFormPayload {
+  id?: number
+  sessionDate: string
+  bracketId: number
+  groupId?: number | null
+  expectedPersonCount: number
+  remark?: string
+}
+
 export interface PageResult<T> {
   data: T[]
   total: number
@@ -190,4 +218,12 @@ export const statApi = {
   getDistanceStat: (distance: number) => service.get(`/stat/distance/${distance}`) as unknown as Promise<DistanceStat>,
   getDistanceStatsByRange: (minDistance: number, maxDistance: number) =>
     service.get('/stat/distance/range', { params: { minDistance, maxDistance } }) as unknown as Promise<DistanceStat[]>
+}
+
+export const sessionApi = {
+  list: (params: { startDate?: string; endDate?: string } = {}) =>
+    service.get('/session/list', { params }) as unknown as Promise<Session[]>,
+  create: (data: SessionFormPayload) => service.post('/session', data) as unknown as Promise<Session>,
+  update: (data: SessionFormPayload) => service.put('/session', data) as unknown as Promise<Session>,
+  delete: (id: number) => service.delete(`/session/${id}`) as unknown as Promise<void>
 }

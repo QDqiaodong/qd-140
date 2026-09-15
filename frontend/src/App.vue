@@ -22,6 +22,10 @@
           <el-icon><Link /></el-icon>
           <span>绑定管理</span>
         </el-menu-item>
+        <el-menu-item index="/schedule">
+          <el-icon><Calendar /></el-icon>
+          <span>训练排课</span>
+        </el-menu-item>
         <el-menu-item index="/logs">
           <el-icon><Document /></el-icon>
           <span>变更日志</span>
@@ -42,7 +46,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { DataLine, Box, UserFilled, Link, Document } from '@element-plus/icons-vue'
+import { DataLine, Box, UserFilled, Link, Document, Calendar } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -54,6 +58,7 @@ const pageTitles: Record<string, string> = {
   '/bracket': '水上停靠支架管理',
   '/group': '赛艇训练组别管理',
   '/binding': '支架绑定关系管理',
+  '/schedule': '训练课次排课管理',
   '/logs': '绑定变更日志'
 }
 
