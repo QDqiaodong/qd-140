@@ -102,7 +102,7 @@ export interface DistanceStat {
   groups: Group[]
 }
 
-/** 训练课次（排课）。valid/overloaded 由后端按支架“当前承重”实时判定 */
+/** 训练课次（排课）。valid/overloaded/因停用不可上 由后端实时判定；因支架停用被标掉的课不随支架重新启用自动恢复 */
 export interface Session {
   id: number
   sessionDate: string
@@ -114,11 +114,15 @@ export interface Session {
   groupName: string | null
   groupCode: string | null
   expectedPersonCount: number
+  /** 课次状态：1-有效，0-因支架停用被标掉 */
+  status: number
   remark: string | null
   createdAt: string
   updatedAt: string
   valid: boolean
   overloaded: boolean
+  /** 是否因支架停用而不可上（仅上课日还没到或就是今天的课） */
+  bracketDisabled: boolean
 }
 
 export interface SessionFormPayload {

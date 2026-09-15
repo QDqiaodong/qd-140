@@ -162,4 +162,95 @@ class TrainingSessionServiceImplTest {
         assertThat(view.getOverloaded()).isFalse();
         assertThat(view.getValid()).isTrue();
     }
+
+    @Test
+    void markedDisabledSession_staysInvalidEvenAfterBracketReenabled() {
+        // 支架停用时这节课被标掉（status=0）；之后支架重新启用，课不能自动变回有效
+        TrainingSession marked = TrainingSession.builder()
+                .id(200L)
+                .sessionDate(LocalDate.now().plusDays(1))
+                .bracketId(1L)
+                .expectedPersonCount(100)
+                .status(0)
+                .build();
+        when(sessionRepository.findById(200L)).thenReturn(Optional.of(marked));
+
+        SessionDTO view = service.getById(200L);
+        assertThat(view.getStatus()).isEqualTo(0);
+        assertThat(view.getValid()).isFalse();
+        assertThat(view.getBracketDisabled()).isTrue();
+    }
+
+    @Test
+    void upcomingSession_onCurrentlyDisabledBracket_showsNotAttendable() {
+        // 关掉排课再打开：支架仍处于停用，未上课次依然能看出来不能上，且原因是支架停用
+        bracket.setStatus(0);
+        TrainingSession upcoming = TrainingSession.builder()
+                .id(201L)
+                .sessionDate(LocalDate.now().plusDays(1))
+                .bracketId(1L)
+                .expectedPersonCount(100)
+                .status(1)
+                .build();
+        when(sessionRepository.findById(201L)).thenReturn(Optional.of(upcoming));
+
+        SessionDTO view = service.getById(201L);
+        assertThat(view.getValid()).isFalse();
+        assertThat(view.getBracketDisabled()).isTrue();
+    }
+
+    @Test
+    void pastSession_onDisabledBracket_keepsHistoricalRecord() {
+        // 已过上课日的课不回溯标停用，留着当时的记录
+        bracket.setStatus(0);
+        TrainingSession past = TrainingSession.builder()
+                .id(202L)
+                .sessionDate(LocalDate.now().minusDays(1))
+                .bracketId(1L)
+                .expectedPersonCount(100)
+                .status(1)
+                .build();
+        when(sessionRepository.findById(202L)).thenReturn(Optional.of(past));
+
+        SessionDTO view = service.getById(202L);
+        assertThat(view.getBracketDisabled()).isFalse();
+        assertThat(view.getValid()).isTrue();
+    }
+
+    @Test
+    void rescheduleMarkedSession_viaUpdate_restoresValid() {
+        // 因支架停用被标掉的课，场务改课重排（支架已重新启用、人数不超载）后恢复有效
+        TrainingSession marked = TrainingSession.builder()
+                .id(203L)
+                .sessionDate(LocalDate.now().plusDays(2))
+                .bracketId(1L)
+                .expectedPersonCount(100)
+                .status(0)
+                .build();
+        when(sessionRepository.findById(203L)).thenReturn(Optional.of(marked));
+
+        SessionUpdateRequest req = SessionUpdateRequest.builder()
+                .id(203L)
+                .sessionDate(LocalDate.now().plusDays(2))
+                .bracketId(1L)
+                .groupId(null)
+                .expectedPersonCount(100)
+                .remark(null)
+                .build();
+        SessionDTO saved = service.update(req);
+
+        assertThat(marked.getStatus()).isEqualTo(1);
+        assertThat(saved.getStatus()).isEqualTo(1);
+        assertThat(saved.getValid()).isTrue();
+        assertThat(saved.getBracketDisabled()).isFalse();
+    }
+
+    @Test
+    void create_blockedWhenBracketDisabled() {
+        // 停用保存成功后，不能再往这根支架上排新课
+        bracket.setStatus(0);
+        assertThatThrownBy(() -> service.create(createReq(100)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("已禁用");
+    }
 }

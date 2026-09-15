@@ -37,6 +37,11 @@ public class TrainingSession {
     @Column(name = "expected_person_count", nullable = false)
     private Integer expectedPersonCount;
 
+    /** 课次状态：1-有效，0-因支架停用被标掉（须场务重排，不随支架重新启用自动恢复） */
+    @Column(name = "status")
+    @Builder.Default
+    private Integer status = 1;
+
     @Column(name = "remark", length = 255)
     private String remark;
 

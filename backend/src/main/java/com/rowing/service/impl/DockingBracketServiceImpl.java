@@ -6,9 +6,11 @@ import com.rowing.dto.request.BracketUpdateRequest;
 import com.rowing.dto.response.BracketDTO;
 import com.rowing.dto.response.PageResult;
 import com.rowing.entity.DockingBracket;
+import com.rowing.entity.TrainingSession;
 import com.rowing.exception.BusinessException;
 import com.rowing.repository.BracketBindingRepository;
 import com.rowing.repository.DockingBracketRepository;
+import com.rowing.repository.TrainingSessionRepository;
 import com.rowing.service.DockingBracketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +21,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -29,6 +32,7 @@ public class DockingBracketServiceImpl implements DockingBracketService {
 
     private final DockingBracketRepository bracketRepository;
     private final BracketBindingRepository bindingRepository;
+    private final TrainingSessionRepository sessionRepository;
 
     @Override
     @Transactional
@@ -89,6 +93,13 @@ public class DockingBracketServiceImpl implements DockingBracketService {
         }
 
         bracket = bracketRepository.save(bracket);
+
+        // 停用保存成功后，同一事务内把该支架上还没上课（含今天）的有效课次标掉；
+        // 已过上课日的课保留当时记录不动。重新启用（status=1）不进入此分支，已标掉的课次不会自动恢复。
+        if (bracket.getStatus() != null && bracket.getStatus() == 0) {
+            markUpcomingSessionsDisabled(bracket);
+        }
+
         log.info("更新支架成功: {}", bracket.getBracketCode());
         return BracketDTO.fromEntity(bracket);
     }
@@ -103,7 +114,24 @@ public class DockingBracketServiceImpl implements DockingBracketService {
 
         bracket.setStatus(0);
         bracketRepository.save(bracket);
+        // 删除（软删）视同停用：未上课次一并标掉，保留已过上课日的历史记录
+        markUpcomingSessionsDisabled(bracket);
         log.info("删除支架成功: {}", bracket.getBracketCode());
+    }
+
+    /**
+     * 支架停用后，其上课日还没到或就是今天、且当前仍有效的课次一律标为“因支架停用失效”（status=0）。
+     * 标掉是持久化的：之后即使支架重新启用，这些课次也不会自动变回有效，须场务在排课页改课重排。
+     */
+    private void markUpcomingSessionsDisabled(DockingBracket bracket) {
+        List<TrainingSession> upcoming = sessionRepository
+                .findByBracketIdAndStatusAndSessionDateGreaterThanEqual(bracket.getId(), 1, LocalDate.now());
+        if (upcoming.isEmpty()) {
+            return;
+        }
+        upcoming.forEach(session -> session.setStatus(0));
+        sessionRepository.saveAll(upcoming);
+        log.info("支架 {} 已停用，{} 节未上课次标记为不可上（支架已停用）", bracket.getBracketCode(), upcoming.size());
     }
 
     @Override

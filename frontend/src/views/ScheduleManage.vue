@@ -46,9 +46,11 @@
         <el-table-column label="状态" width="250">
           <template #default="{ row }">
             <el-tag :type="row.valid ? 'success' : 'danger'">
-              {{ row.overloaded
-                ? `超载（承重${row.loadCapacity}人/已排${row.expectedPersonCount}人）`
-                : (row.valid ? '可上' : '不可上') }}
+              {{ row.bracketDisabled
+                ? '不可上（支架已停用）'
+                : (row.overloaded
+                  ? `超载（承重${row.loadCapacity}人/已排${row.expectedPersonCount}人）`
+                  : (row.valid ? '可上' : '不可上')) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -67,6 +69,13 @@
         :closable="false"
         show-icon
         title="超载课次不能上：支架承重被场务调小后，已排人数压过新承重的课次会自动标为超载，须把人数降到新承重以内（或更换支架）后才可正常上艇。"
+      />
+      <el-alert
+        class="overload-tip"
+        type="warning"
+        :closable="false"
+        show-icon
+        title="停用支架的课不能上：支架被停用后，其上上课日还没到（含今天）的课次会自动标为「不可上（支架已停用）」；重新启用支架不会自动恢复这些课，须场务改课重排。已过上课日的课保留当时的记录。"
       />
     </el-card>
 
@@ -89,10 +98,13 @@
             @change="onBracketChange"
           >
             <el-option
-              v-for="bracket in brackets"
+              v-for="bracket in bracketOptions"
               :key="bracket.id"
-              :label="`${bracket.bracketCode}（当前承重 ${bracket.loadCapacity} 人）`"
+              :label="bracket.disabled
+                ? `${bracket.bracketCode}（已停用，不能排课，请改选其他支架）`
+                : `${bracket.bracketCode}（当前承重 ${bracket.loadCapacity} 人）`"
               :value="bracket.id"
+              :disabled="bracket.disabled"
             />
           </el-select>
         </el-form-item>
@@ -137,6 +149,8 @@ const dateRange = ref<[string, string] | null>(null)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref<FormInstance>()
+/** 改课时课次所在支架的编号（该支架可能已被停用，不在可选启用列表里） */
+const editingBracketCode = ref('')
 
 const queryForm = reactive({
   startDate: '',
@@ -155,6 +169,29 @@ const form = reactive({
 const selectedBracket = computed(() =>
   brackets.value.find(b => b.id === form.bracketId)
 )
+
+/**
+ * 排课/改课可选支架：只列启用中的支架，停用支架不能排新课（后端同样拦截）。
+ * 改课时若课次所在支架已被停用，补一个禁用选项，让场务看得出这课是因为支架停用不能上、需改选支架重排。
+ */
+const bracketOptions = computed<Array<Bracket & { disabled?: boolean }>>(() => {
+  const options: Array<Bracket & { disabled?: boolean }> = [...brackets.value]
+  if (isEdit.value && form.bracketId && !brackets.value.some(b => b.id === form.bracketId)) {
+    options.push({
+      id: form.bracketId,
+      bracketCode: editingBracketCode.value || String(form.bracketId),
+      loadCapacity: 0,
+      minDistance: 0,
+      maxDistance: 0,
+      status: 0,
+      remark: '',
+      createdAt: '',
+      updatedAt: '',
+      disabled: true
+    })
+  }
+  return options
+})
 
 const rules = computed<FormRules>(() => ({
   sessionDate: [{ required: true, message: '请选择训练日期', trigger: 'change' }],
@@ -224,6 +261,7 @@ const onBracketChange = () => {
 
 const openAddDialog = () => {
   isEdit.value = false
+  editingBracketCode.value = ''
   Object.assign(form, {
     id: 0,
     sessionDate: '',
@@ -237,6 +275,7 @@ const openAddDialog = () => {
 
 const openEditDialog = (row: Session) => {
   isEdit.value = true
+  editingBracketCode.value = row.bracketCode || ''
   Object.assign(form, {
     id: row.id,
     sessionDate: row.sessionDate,

@@ -22,6 +22,7 @@ services:
       - ./backend/sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
       - ./backend/sql/migration_plan_attachment.sql:/docker-entrypoint-initdb.d/02-migration_plan_attachment.sql:ro
       - ./backend/sql/migration_training_session.sql:/docker-entrypoint-initdb.d/03-migration_training_session.sql:ro
+      - ./backend/sql/migration_session_status.sql:/docker-entrypoint-initdb.d/04-migration_session_status.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 10s

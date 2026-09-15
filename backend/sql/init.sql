@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS training_session (
     bracket_id BIGINT NOT NULL COMMENT '停靠支架ID',
     group_id BIGINT NULL COMMENT '训练组别ID（可空）',
     expected_person_count INT NOT NULL COMMENT '预计上艇人数（必填，不得超过支架当前承重）',
+    status INT DEFAULT 1 COMMENT '课次状态：1-有效，0-因支架停用失效（须场务重排，不随支架重新启用自动恢复）',
     remark VARCHAR(255) COMMENT '备注',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',

@@ -67,6 +67,8 @@ public class TrainingSessionServiceImpl implements TrainingSessionService {
         session.setGroupId(request.getGroupId());
         session.setExpectedPersonCount(request.getExpectedPersonCount());
         session.setRemark(request.getRemark());
+        // 改课即重排：支架、承重校验都过了，此前因支架停用被标掉的课次在保存后恢复为有效
+        session.setStatus(1);
 
         session = sessionRepository.save(session);
         log.info("更新课次成功: id={} 支架={} 人数={}", session.getId(),
