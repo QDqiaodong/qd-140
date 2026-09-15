@@ -45,11 +45,38 @@ export interface Binding {
   id: number
   bracketId: number
   bracketCode: string
+  bracketMinDistance: number | null
+  bracketMaxDistance: number | null
+  bracketStatus: number | null
   groupId: number
   groupName: string
-  racingDistance: number
+  groupCode: string | null
+  racingDistance: number | null
   bindingTime: string
   status: number
+}
+
+/** 组别改距离后被当场拆掉的绑定明细 */
+export interface UnboundBinding {
+  bindingId: number
+  bracketId: number
+  bracketCode: string
+  bracketMinDistance: number
+  bracketMaxDistance: number
+  groupId: number
+  groupName: string
+  groupCode: string
+  previousDistance: number
+  newDistance: number
+}
+
+export interface GroupUpdateResult {
+  group: Group
+  distanceChanged: boolean
+  previousDistance: number | null
+  newDistance: number | null
+  unboundBindings: UnboundBinding[]
+  unboundCount: number
 }
 
 export interface ChangeLog {
@@ -105,7 +132,7 @@ export const groupApi = {
   create: (data: Omit<Group, 'id' | 'planFileName' | 'createdAt' | 'updatedAt'>) =>
     service.post('/group', data) as unknown as Promise<Group>,
   update: (data: Partial<Omit<Group, 'planFileName' | 'createdAt' | 'updatedAt'>> & { id: number }) =>
-    service.put('/group', data) as unknown as Promise<Group>,
+    service.put('/group', data) as unknown as Promise<GroupUpdateResult>,
   delete: (id: number) => service.delete(`/group/${id}`) as unknown as Promise<void>,
   getById: (id: number) => service.get(`/group/${id}`) as unknown as Promise<Group>,
   list: () => service.get('/group/list') as unknown as Promise<Group[]>,
@@ -137,6 +164,7 @@ export const bindingApi = {
   getByBracketId: (bracketId: number) => service.get(`/binding/bracket/${bracketId}`) as unknown as Promise<Binding[]>,
   getByGroupId: (groupId: number) => service.get(`/binding/group/${groupId}`) as unknown as Promise<Binding[]>,
   getAllActive: () => service.get('/binding/active') as unknown as Promise<Binding[]>,
+  getAll: () => service.get('/binding/all') as unknown as Promise<Binding[]>,
   getLogsByBracketId: (bracketId: number) => service.get(`/binding/logs/bracket/${bracketId}`) as unknown as Promise<ChangeLog[]>,
   getLogsByGroupId: (groupId: number) => service.get(`/binding/logs/group/${groupId}`) as unknown as Promise<ChangeLog[]>,
   queryLogs: (params: {

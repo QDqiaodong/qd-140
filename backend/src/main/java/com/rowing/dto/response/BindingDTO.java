@@ -17,8 +17,12 @@ public class BindingDTO {
     private Long id;
     private Long bracketId;
     private String bracketCode;
+    private Integer bracketMinDistance;
+    private Integer bracketMaxDistance;
+    private Integer bracketStatus;
     private Long groupId;
     private String groupName;
+    private String groupCode;
     private Integer racingDistance;
     private LocalDateTime bindingTime;
     private Integer status;

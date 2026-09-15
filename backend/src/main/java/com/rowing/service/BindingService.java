@@ -21,6 +21,8 @@ public interface BindingService {
 
     List<BindingDTO> findAllActive();
 
+    List<BindingDTO> findAll();
+
     List<ChangeLogDTO> getLogsByBracketId(Long bracketId);
 
     List<ChangeLogDTO> getLogsByGroupId(Long groupId);

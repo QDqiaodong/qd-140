@@ -124,10 +124,10 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Paperclip } from '@element-plus/icons-vue'
 import type { UploadRequestOptions } from 'element-plus'
-import { groupApi, type Group } from '@/api'
+import { groupApi, type Group, type GroupUpdateResult } from '@/api'
 import type { FormInstance, FormRules } from 'element-plus'
 
 const ALLOWED_PLAN_EXTENSIONS = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt']
@@ -297,8 +297,9 @@ const handleSubmit = async () => {
   submitting.value = true
   try {
     let groupId = form.id
+    let updateResult: GroupUpdateResult | null = null
     if (isEdit.value) {
-      await groupApi.update(form)
+      updateResult = await groupApi.update(form)
     } else {
       // 先做附件通过（已在选择文件时完成校验），再做保存组别
       const created = await groupApi.create(form)
@@ -328,11 +329,33 @@ const handleSubmit = async () => {
     ElMessage.success(isEdit.value ? '组别更新成功' : '组别建档成功')
     dialogVisible.value = false
     handleQuery()
+
+    // 竞速距离变更后，对不上区间的绑定已在服务端拆掉，当场把明细告知场务
+    if (updateResult && updateResult.unboundCount > 0) {
+      notifyUnboundBindings(updateResult)
+    }
   } catch (error) {
     console.error('操作失败:', error)
   } finally {
     submitting.value = false
   }
+}
+
+const notifyUnboundBindings = (result: GroupUpdateResult) => {
+  const lines = result.unboundBindings.map(item =>
+    `${item.bracketCode} × ${item.groupName}（支架适配 ${item.bracketMinDistance}-${item.bracketMaxDistance}m）`
+  )
+  ElMessageBox.alert(
+    `竞速距离已由 ${result.previousDistance}m 改为 ${result.newDistance}m，以下 `
+      + `${result.unboundCount} 条绑定因超出支架适配区间已被自动解绑，绑定列表中显示为“失效”：<br/><br/>`
+      + lines.map(line => `· ${line}`).join('<br/>'),
+    '部分支架绑定已自动解绑',
+    {
+      confirmButtonText: '我知道了',
+      type: 'warning',
+      dangerouslyUseHTMLString: true
+    }
+  ).catch(() => {})
 }
 
 const handleDelete = (row: Group) => {

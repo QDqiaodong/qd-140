@@ -49,21 +49,29 @@ public class BindingServiceImpl implements BindingService {
         RowingGroup group = groupRepository.findById(request.getGroupId())
                 .orElseThrow(() -> new BusinessException("组别不存在"));
 
-        if (bindingRepository.findByBracketIdAndGroupId(request.getBracketId(), request.getGroupId()).isPresent()) {
-            throw new BusinessException("绑定关系已存在");
-        }
-
         if (group.getRacingDistance() < bracket.getMinDistance() || group.getRacingDistance() > bracket.getMaxDistance()) {
             throw new BusinessException("组别竞速距离超出支架适配范围");
         }
 
-        BracketBinding binding = BracketBinding.builder()
-                .bracketId(request.getBracketId())
-                .groupId(request.getGroupId())
-                .status(1)
-                .build();
-
-        binding = bindingRepository.save(binding);
+        // 曾因区间不匹配被拆掉（失效）的绑定，重新匹配时恢复生效，不再占用唯一键导致无法重绑
+        BracketBinding binding = bindingRepository
+                .findByBracketIdAndGroupId(request.getBracketId(), request.getGroupId())
+                .orElse(null);
+        boolean reactivated = false;
+        if (binding != null) {
+            if (binding.getStatus() == 1) {
+                throw new BusinessException("绑定关系已存在");
+            }
+            binding.setStatus(1);
+            binding = bindingRepository.save(binding);
+            reactivated = true;
+        } else {
+            binding = bindingRepository.save(BracketBinding.builder()
+                    .bracketId(request.getBracketId())
+                    .groupId(request.getGroupId())
+                    .status(1)
+                    .build());
+        }
 
         BindingChangeLog logEntry = BindingChangeLog.builder()
                 .bracketId(bracket.getId())
@@ -73,7 +81,8 @@ public class BindingServiceImpl implements BindingService {
                 .changeType("BIND")
                 .previousDistance(null)
                 .newDistance(group.getRacingDistance())
-                .changeReason(request.getReason() != null ? request.getReason() : "手动绑定")
+                .changeReason(request.getReason() != null ? request.getReason()
+                        : (reactivated ? "区间重新匹配，恢复绑定" : "手动绑定"))
                 .operator(request.getOperator() != null ? request.getOperator() : "admin")
                 .build();
 
@@ -166,6 +175,18 @@ public class BindingServiceImpl implements BindingService {
     }
 
     @Override
+    public List<BindingDTO> findAll() {
+        // 包含已失效的绑定，绑定列表刷新后失效关系仍可见并展示为“失效”
+        return bindingRepository.findAll().stream()
+                .map(binding -> {
+                    DockingBracket bracket = bracketRepository.findById(binding.getBracketId()).orElse(null);
+                    RowingGroup group = groupRepository.findById(binding.getGroupId()).orElse(null);
+                    return buildBindingDTO(binding, bracket, group);
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public List<ChangeLogDTO> getLogsByBracketId(Long bracketId) {
         return changeLogRepository.findByBracketId(bracketId).stream()
                 .map(ChangeLogDTO::fromEntity)
@@ -208,8 +229,12 @@ public class BindingServiceImpl implements BindingService {
                 .id(binding.getId())
                 .bracketId(binding.getBracketId())
                 .bracketCode(bracket != null ? bracket.getBracketCode() : null)
+                .bracketMinDistance(bracket != null ? bracket.getMinDistance() : null)
+                .bracketMaxDistance(bracket != null ? bracket.getMaxDistance() : null)
+                .bracketStatus(bracket != null ? bracket.getStatus() : null)
                 .groupId(binding.getGroupId())
                 .groupName(group != null ? group.getGroupName() : null)
+                .groupCode(group != null ? group.getGroupCode() : null)
                 .racingDistance(group != null ? group.getRacingDistance() : null)
                 .bindingTime(binding.getBindingTime())
                 .status(binding.getStatus())

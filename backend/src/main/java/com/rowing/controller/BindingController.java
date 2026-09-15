@@ -49,6 +49,11 @@ public class BindingController {
         return ApiResponse.success(bindingService.findAllActive());
     }
 
+    @GetMapping("/all")
+    public ApiResponse<List<BindingDTO>> getAll() {
+        return ApiResponse.success(bindingService.findAll());
+    }
+
     @GetMapping("/logs/bracket/{bracketId}")
     public ApiResponse<List<ChangeLogDTO>> getLogsByBracketId(@PathVariable Long bracketId) {
         return ApiResponse.success(bindingService.getLogsByBracketId(bracketId));

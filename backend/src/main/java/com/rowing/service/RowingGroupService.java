@@ -3,6 +3,7 @@ package com.rowing.service;
 import com.rowing.dto.request.GroupCreateRequest;
 import com.rowing.dto.request.GroupUpdateRequest;
 import com.rowing.dto.response.GroupDTO;
+import com.rowing.dto.response.GroupUpdateResultDTO;
 import com.rowing.dto.response.PageResult;
 import org.springframework.core.io.Resource;
 import org.springframework.web.multipart.MultipartFile;
@@ -13,7 +14,7 @@ public interface RowingGroupService {
 
     GroupDTO create(GroupCreateRequest request);
 
-    GroupDTO update(GroupUpdateRequest request);
+    GroupUpdateResultDTO update(GroupUpdateRequest request);
 
     void delete(Long id);
 

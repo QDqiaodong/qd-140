@@ -3,6 +3,7 @@ package com.rowing.service.impl;
 import com.rowing.dto.request.GroupCreateRequest;
 import com.rowing.dto.request.GroupUpdateRequest;
 import com.rowing.dto.response.GroupDTO;
+import com.rowing.dto.response.GroupUpdateResultDTO;
 import com.rowing.dto.response.PageResult;
 import com.rowing.entity.BindingChangeLog;
 import com.rowing.entity.BracketBinding;
@@ -35,6 +36,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -84,7 +86,7 @@ public class RowingGroupServiceImpl implements RowingGroupService {
 
     @Override
     @Transactional
-    public GroupDTO update(GroupUpdateRequest request) {
+    public GroupUpdateResultDTO update(GroupUpdateRequest request) {
         RowingGroup group = groupRepository.findById(request.getId())
                 .orElseThrow(() -> new BusinessException("组别不存在"));
 
@@ -107,38 +109,68 @@ public class RowingGroupServiceImpl implements RowingGroupService {
         }
 
         Integer newDistance = group.getRacingDistance();
+        boolean distanceChanged = !oldDistance.equals(newDistance);
 
-        if (!oldDistance.equals(newDistance)) {
+        List<GroupUpdateResultDTO.UnboundBindingItem> unboundItems = new ArrayList<>();
+
+        // 竞速距离改完后，对不上支架适配区间的生效绑定当场拆掉，避免悄悄失效
+        if (distanceChanged) {
             List<BracketBinding> bindings = bindingRepository.findByGroupId(request.getId());
             for (BracketBinding binding : bindings) {
-                if (binding.getStatus() == 1) {
-                    DockingBracket bracket = bracketRepository.findById(binding.getBracketId()).orElse(null);
-                    if (bracket != null) {
-                        BindingChangeLog logEntry = BindingChangeLog.builder()
-                                .bracketId(bracket.getId())
-                                .bracketCode(bracket.getBracketCode())
-                                .groupId(group.getId())
-                                .groupName(group.getGroupName())
-                                .changeType("UPDATE")
-                                .previousDistance(oldDistance)
-                                .newDistance(newDistance)
-                                .changeReason("组别竞速距离变更")
-                                .operator("system")
-                                .build();
-                        changeLogRepository.save(logEntry);
+                if (binding.getStatus() != 1) {
+                    continue;
+                }
+                DockingBracket bracket = bracketRepository.findById(binding.getBracketId()).orElse(null);
+                if (bracket == null) {
+                    continue;
+                }
+                if (newDistance < bracket.getMinDistance() || newDistance > bracket.getMaxDistance()) {
+                    binding.setStatus(0);
+                    bindingRepository.save(binding);
 
-                        if (newDistance < bracket.getMinDistance() || newDistance > bracket.getMaxDistance()) {
-                            binding.setStatus(0);
-                            bindingRepository.save(binding);
-                        }
-                    }
+                    BindingChangeLog logEntry = BindingChangeLog.builder()
+                            .bracketId(bracket.getId())
+                            .bracketCode(bracket.getBracketCode())
+                            .groupId(group.getId())
+                            .groupName(group.getGroupName())
+                            .changeType("UNBIND")
+                            .previousDistance(oldDistance)
+                            .newDistance(newDistance)
+                            .changeReason("组别竞速距离由" + oldDistance + "m改为" + newDistance
+                                    + "m，超出支架" + bracket.getMinDistance() + "-"
+                                    + bracket.getMaxDistance() + "m适配区间，系统自动解绑")
+                            .operator("system")
+                            .build();
+                    changeLogRepository.save(logEntry);
+
+                    unboundItems.add(GroupUpdateResultDTO.UnboundBindingItem.builder()
+                            .bindingId(binding.getId())
+                            .bracketId(bracket.getId())
+                            .bracketCode(bracket.getBracketCode())
+                            .bracketMinDistance(bracket.getMinDistance())
+                            .bracketMaxDistance(bracket.getMaxDistance())
+                            .groupId(group.getId())
+                            .groupName(group.getGroupName())
+                            .groupCode(group.getGroupCode())
+                            .previousDistance(oldDistance)
+                            .newDistance(newDistance)
+                            .build());
                 }
             }
         }
 
         group = groupRepository.save(group);
-        log.info("更新组别成功: {}", group.getGroupCode());
-        return GroupDTO.fromEntity(group);
+        log.info("更新组别成功: {}，竞速距离 {} -> {}，自动解绑绑定 {} 条",
+                group.getGroupCode(), oldDistance, newDistance, unboundItems.size());
+
+        return GroupUpdateResultDTO.builder()
+                .group(GroupDTO.fromEntity(group))
+                .distanceChanged(distanceChanged)
+                .previousDistance(distanceChanged ? oldDistance : null)
+                .newDistance(distanceChanged ? newDistance : null)
+                .unboundBindings(unboundItems)
+                .unboundCount(unboundItems.size())
+                .build();
     }
 
     @Override

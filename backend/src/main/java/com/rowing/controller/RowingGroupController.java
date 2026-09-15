@@ -4,6 +4,7 @@ import com.rowing.dto.request.GroupCreateRequest;
 import com.rowing.dto.request.GroupUpdateRequest;
 import com.rowing.dto.response.ApiResponse;
 import com.rowing.dto.response.GroupDTO;
+import com.rowing.dto.response.GroupUpdateResultDTO;
 import com.rowing.dto.response.PageResult;
 import com.rowing.service.RowingGroupService;
 import jakarta.validation.Valid;
@@ -32,7 +33,7 @@ public class RowingGroupController {
     }
 
     @PutMapping
-    public ApiResponse<GroupDTO> update(@Valid @RequestBody GroupUpdateRequest request) {
+    public ApiResponse<GroupUpdateResultDTO> update(@Valid @RequestBody GroupUpdateRequest request) {
         return ApiResponse.success(groupService.update(request));
     }
 
