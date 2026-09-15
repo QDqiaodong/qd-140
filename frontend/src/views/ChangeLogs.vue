@@ -22,6 +22,7 @@
         <el-form-item>
           <el-button type="primary" @click="handleQuery">查询</el-button>
           <el-button @click="resetQuery">重置</el-button>
+          <el-button type="success" @click="handleExport">导出</el-button>
         </el-form-item>
       </el-form>
 
@@ -90,6 +91,19 @@ const resetQuery = () => {
   queryForm.changeType = ''
   queryForm.pageNum = 1
   handleQuery()
+}
+
+// 按当前筛选条件导出全部命中记录（不限于当前页），文件内容随筛选变化
+const handleExport = () => {
+  const link = document.createElement('a')
+  link.href = bindingApi.exportLogsUrl({
+    bracketCode: queryForm.bracketCode,
+    groupName: queryForm.groupName,
+    changeType: queryForm.changeType
+  })
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
 }
 
 const getChangeTypeName = (type: string) => {

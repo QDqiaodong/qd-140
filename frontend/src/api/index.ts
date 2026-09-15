@@ -174,6 +174,14 @@ export const bindingApi = {
     pageNum?: number
     pageSize?: number
   }) => service.get('/binding/logs/page', { params }) as unknown as Promise<PageResult<ChangeLog>>,
+  exportLogsUrl: (params: { bracketCode?: string; groupName?: string; changeType?: string }) => {
+    const query = new URLSearchParams()
+    if (params.bracketCode) query.append('bracketCode', params.bracketCode)
+    if (params.groupName) query.append('groupName', params.groupName)
+    if (params.changeType) query.append('changeType', params.changeType)
+    const qs = query.toString()
+    return `/api/binding/logs/export${qs ? `?${qs}` : ''}`
+  },
   getRecentLogs: (limit?: number) => service.get('/binding/logs/recent', { params: { limit } }) as unknown as Promise<ChangeLog[]>
 }
 

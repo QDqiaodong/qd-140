@@ -208,13 +208,29 @@ public class BindingServiceImpl implements BindingService {
                 Sort.by(Sort.Direction.DESC, "changedAt")
         );
 
-        Page<BindingChangeLog> page = changeLogRepository.findByConditions(bracketCode, groupName, changeType, pageable);
+        Page<BindingChangeLog> page = changeLogRepository.findByConditions(
+                blankToNull(bracketCode), blankToNull(groupName), blankToNull(changeType), pageable);
 
         List<ChangeLogDTO> dtoList = page.getContent().stream()
                 .map(ChangeLogDTO::fromEntity)
                 .collect(Collectors.toList());
 
         return PageResult.of(dtoList, page.getTotalElements(), pageNum, pageSize);
+    }
+
+    @Override
+    public List<ChangeLogDTO> listLogsForExport(String bracketCode, String groupName, String changeType) {
+        // 与分页查询同一套筛选条件，仅去掉分页，保证导出行与当前筛选结果一致
+        return changeLogRepository.findAllByConditions(
+                        blankToNull(bracketCode), blankToNull(groupName), blankToNull(changeType),
+                        Sort.by(Sort.Direction.DESC, "changedAt"))
+                .stream()
+                .map(ChangeLogDTO::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    private String blankToNull(String value) {
+        return (value == null || value.isBlank()) ? null : value;
     }
 
     @Override

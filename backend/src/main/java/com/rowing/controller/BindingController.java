@@ -8,8 +8,15 @@ import com.rowing.dto.response.PageResult;
 import com.rowing.service.BindingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @RestController
@@ -73,6 +80,63 @@ public class BindingController {
             @RequestParam(defaultValue = "10") Integer pageSize) {
 
         return ApiResponse.success(bindingService.queryLogs(bracketCode, groupName, changeType, pageNum, pageSize));
+    }
+
+    @GetMapping("/logs/export")
+    public ResponseEntity<byte[]> exportLogs(
+            @RequestParam(required = false) String bracketCode,
+            @RequestParam(required = false) String groupName,
+            @RequestParam(required = false) String changeType) {
+
+        List<ChangeLogDTO> logs = bindingService.listLogsForExport(bracketCode, groupName, changeType);
+
+        DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        StringBuilder csv = new StringBuilder("\uFEFF"); // BOM，Excel 打开中文不乱码
+        csv.append("支架编号,组别名称,变更类型,变更前距离(m),变更后距离(m),变更原因,操作人,变更时间\n");
+        for (ChangeLogDTO entry : logs) {
+            csv.append(csvCell(entry.getBracketCode())).append(',')
+                    .append(csvCell(entry.getGroupName())).append(',')
+                    .append(csvCell(changeTypeName(entry.getChangeType()))).append(',')
+                    .append(entry.getPreviousDistance() != null ? entry.getPreviousDistance() : "").append(',')
+                    .append(entry.getNewDistance() != null ? entry.getNewDistance() : "").append(',')
+                    .append(csvCell(entry.getChangeReason())).append(',')
+                    .append(csvCell(entry.getOperator())).append(',')
+                    .append(entry.getChangedAt() != null ? entry.getChangedAt().format(timeFormatter) : "")
+                    .append('\n');
+        }
+
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+        String asciiFilename = "change-logs-" + timestamp + ".csv";
+        String utf8Filename = URLEncoder.encode("变更日志-" + timestamp + ".csv", StandardCharsets.UTF_8)
+                .replace("+", "%20");
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + asciiFilename + "\"; filename*=UTF-8''" + utf8Filename)
+                .body(csv.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String csvCell(String value) {
+        if (value == null) {
+            return "";
+        }
+        if (value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r")) {
+            return "\"" + value.replace("\"", "\"\"") + "\"";
+        }
+        return value;
+    }
+
+    private String changeTypeName(String changeType) {
+        if (changeType == null) {
+            return "";
+        }
+        return switch (changeType) {
+            case "BIND" -> "绑定";
+            case "UNBIND" -> "解绑";
+            case "UPDATE" -> "更新";
+            default -> changeType;
+        };
     }
 
     @GetMapping("/logs/recent")

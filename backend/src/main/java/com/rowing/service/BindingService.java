@@ -29,5 +29,7 @@ public interface BindingService {
 
     PageResult<ChangeLogDTO> queryLogs(String bracketCode, String groupName, String changeType, Integer pageNum, Integer pageSize);
 
+    List<ChangeLogDTO> listLogsForExport(String bracketCode, String groupName, String changeType);
+
     List<ChangeLogDTO> getRecentLogs(Integer limit);
 }
